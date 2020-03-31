@@ -7,24 +7,23 @@ namespace MarxML
     public class WeightsGenerator
     {
         private readonly RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+        private readonly Random rng2;
+        private readonly PRNG pnrg;
 
         public WeightsGenerator()
         {
+            rng2 = new Random(79);
+            pnrg = new PRNG(double.Epsilon);
         }
 
-        public double[] CreateWeights(int type, int amount)
+        public double[] CreateRandomWeightsPositivePRNG(int numElements)
         {
-            switch (type)
-            {
-                case 0:
-                    return CreateRandomWeightsPositive(amount);
-                case 1:
-                    return CreateRandomWeightsNegative(amount);
-                case 3:
-                    return CreateRandomWeightsPositiveAndNegative(amount);
-                default:
-                    return CreateRandomWeightsPositiveAndNegative(amount);
-            }
+            double[] weights = new double[numElements];
+
+            for (int i = 0; i < numElements; i++)
+                weights[i] = NextDoubleBetween0and1PNRG();
+
+            return weights;
         }
 
         public double[] CreateRandomWeightsPositive(int numElements)
@@ -72,6 +71,8 @@ namespace MarxML
             return weights;
         }
 
+        #region RNG
+
         private double NextDouble()
         {
             byte[] doubleBlock = new byte[8];
@@ -86,6 +87,18 @@ namespace MarxML
             var rng = new RNGCryptoServiceProvider();
             var bytes = new Byte[8];
             rng.GetBytes(bytes);
+            // Step 2: bit-shift 11 and 53 based on double's mantissa bits
+            var ul = BitConverter.ToUInt64(bytes, 0) / (1 << 11);
+            return ul / (Double)(1UL << 53);
+        }
+
+        private double NextDoubleBetween0and1PNRG()
+        {
+            // Step 1: fill an array with 8 random bytes
+            
+            var b = pnrg.GetNextBytes(); 
+            var bytes = new Byte[8];
+            Array.Copy(b, 0, bytes, 0, bytes.Length);
             // Step 2: bit-shift 11 and 53 based on double's mantissa bits
             var ul = BitConverter.ToUInt64(bytes, 0) / (1 << 11);
             return ul / (Double)(1UL << 53);
@@ -108,5 +121,7 @@ namespace MarxML
             return (int)(min + (max - min) *
                 (scale / (double)uint.MaxValue));
         }
+
+        #endregion
     }
 }

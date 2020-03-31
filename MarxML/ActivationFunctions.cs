@@ -79,60 +79,13 @@ namespace MarxML
             return rX;
         }
 
-        //Custom Output Functions
-
-        public double[] ByteOutput(double[] x)
-        {
-            double[] _rX = new double[x.Length];          
-            
-            for (int i = 0; i < x.Length; i++)
-            {
-                if (x[i] < 230000)
-                    _rX[i] = 0;
-                else
-                    _rX[i] = 1;
-            }
-
-            return _rX;
-        }//27551969.5
-
-        public double[] ByteOutputB0(double[] x)
+        public double[] ByteOutputWithMidPoint(double[] x, long midPoint)
         {
             double[] _rX = new double[x.Length];
 
             for (int i = 0; i < x.Length; i++)
             {
-                if (x[i] < 28163400) //27551970)
-                    _rX[i] = 0;
-                else
-                    _rX[i] = 1;
-            }
-
-            return _rX;
-        }
-
-        public double[] ByteOutputE(double[] x)
-        {
-            double[] _rX = new double[x.Length];
-
-            for (int i = 0; i < x.Length; i++)
-            {
-                if (x[i] < 29180215) //27551970)
-                    _rX[i] = 0;
-                else
-                    _rX[i] = 1;
-            }
-
-            return _rX;
-        }
-
-        public double[] ByteOutputE3(double[] x, MinMax mm)
-        {
-            double[] _rX = new double[x.Length];
-
-            for (int i = 0; i < x.Length; i++)
-            {
-                if (x[i] < ((mm.max - mm.min) / 2) + mm.min)
+                if (x[i] < midPoint)
                     _rX[i] = 0;
                 else
                     _rX[i] = 1;

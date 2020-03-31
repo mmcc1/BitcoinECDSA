@@ -1,53 +1,56 @@
 ﻿/*
- * Engine
+ * Engine B
  * 
- * A proof of concept Engine to validate the hypothesis that bytes of the Bitcoin private key
- * can be discovered from the Public Address and that some generalisation exists.
+ * A proof of concept Engine which validates the probability of discovering Bitcoin's ECDSA 
+ * private key is about 1.104427674243920646305299201e-69.
  * 
- * The probability of discovering a byte is >0.005 whereas chance is 0.0039.  Periodic values
- * of >0.0065 have been observed.
+ * This engine makes use of PRNG, a custom SHA-512 based RNG.  Engine B employs a parallel stage
+ * for the main training stage.  This means certain values are written indeterministically. Change
+ * the Parallel.For to a for loop for deterministic operation.  The seed can be found in the
+ * WeightsGenerator class.
  * 
- * The engine validates the hypothesis that the probability of discovering Bitcoin's ECDSA 
- * private key is around 1.0309258098174834118790766041465e-70 rather than 
- * 8.6361685550944446253863518628004e-78‬.
- * 
- * Further investigation is warranted.
+ * To use RNGCryptoServiceProvider replace CreateRandomWeightsPositivePRNG with CreateRandomWeightsPositive.
  */
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using MarxML;
 
 namespace BTCECDSAAnalyser
 {
-    public class Engine : EngineBase
+    public class EngineB : EngineBase
     {
-        private List<double[]> parentWeights;  //Only used as an indicator of improvement, not recorded anywhere
+        private List<double[]> parentWeights;
+        double min;
+        double max;
+        double maxStat;
 
-        public Engine()
+        public EngineB()
         {
             parentWeights = new List<double[]>();
+            min = double.MaxValue;
+            max = double.MinValue;
         }
 
         #region Deep Learning network design
 
-        //The neural network design. Simple to use, number of networks determines number of inputs in next layer.
         internal override void DesignNN()
         {
-            //Create three layers
-            NeuralNetworkLayerDesign nnld1 = new NeuralNetworkLayerDesign() { LayerNumber = 0, NumberOfInputs = 20, NumberOfNetworks = 20 };
-            nnld1.Weights = weightsGenerator.CreateRandomWeightsPositive(nnld1.NumberOfInputs * nnld1.NumberOfNetworks);  //generate random weights
+            NeuralNetworkLayerDesign nnld1 = new NeuralNetworkLayerDesign() { LayerNumber = 0, NumberOfInputs = 20, NumberOfNetworks = 32 };
+            nnld1.Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld1.NumberOfInputs * nnld1.NumberOfNetworks);  //generate random weights
 
-            NeuralNetworkLayerDesign nnld2 = new NeuralNetworkLayerDesign() { LayerNumber = 1, NumberOfInputs = 20, NumberOfNetworks = 32 };
-            nnld2.Weights = weightsGenerator.CreateRandomWeightsPositive(nnld2.NumberOfInputs * nnld2.NumberOfNetworks);
+            NeuralNetworkLayerDesign nnld2 = new NeuralNetworkLayerDesign() { LayerNumber = 1, NumberOfInputs = nnld1.NumberOfNetworks, NumberOfNetworks = 64 };
+            nnld2.Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld2.NumberOfInputs * nnld2.NumberOfNetworks);
 
-            NeuralNetworkLayerDesign nnld3 = new NeuralNetworkLayerDesign() { LayerNumber = 2, NumberOfInputs = 32, NumberOfNetworks = 256 };
-            nnld3.Weights = weightsGenerator.CreateRandomWeightsPositive(nnld3.NumberOfInputs * nnld3.NumberOfNetworks);
+            NeuralNetworkLayerDesign nnld3 = new NeuralNetworkLayerDesign() { LayerNumber = 2, NumberOfInputs = nnld2.NumberOfNetworks, NumberOfNetworks = 128 };
+            nnld3.Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld3.NumberOfInputs * nnld3.NumberOfNetworks);
 
-            NeuralNetworkLayerDesign nnld4 = new NeuralNetworkLayerDesign() { LayerNumber = 3, NumberOfInputs = 256, NumberOfNetworks = 256 };
-            nnld4.Weights = weightsGenerator.CreateRandomWeightsPositive(nnld4.NumberOfInputs * nnld4.NumberOfNetworks);
+            NeuralNetworkLayerDesign nnld4 = new NeuralNetworkLayerDesign() { LayerNumber = 3, NumberOfInputs = nnld3.NumberOfNetworks, NumberOfNetworks = 256 };
+            nnld4.Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld4.NumberOfInputs * nnld4.NumberOfNetworks);
 
-            nnld1.Biases = new double[nnld1.Weights.Length];  //Set biases to zero.
+            //Adding biases to the first layer
+            nnld1.Biases = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld1.Weights.Length);  // new double[nnld1.Weights.Length]; //  //Set biases to zero.
             nnld2.Biases = new double[nnld2.Weights.Length];
             nnld3.Biases = new double[nnld3.Weights.Length];
             nnld4.Biases = new double[nnld4.Weights.Length];
@@ -64,11 +67,11 @@ namespace BTCECDSAAnalyser
 
         public override void Execute()
         {
-            Console.WriteLine(string.Format("Engine Starting..."));
+            Console.WriteLine(string.Format("Engine B Starting..."));
             DesignNN();
             bool shouldRun = true;
 
-            while (shouldRun)  //Infinite loop
+            while (shouldRun)
             {
                 GenerateDataset();
                 GenerateValidationDataset();
@@ -78,33 +81,43 @@ namespace BTCECDSAAnalyser
 
         #endregion
 
+        #region Train and assess
+
         private void Train()
         {
-            for (int i = 0; i < dataSet.Count; i++)
-            {
-                //No activation function used between hidden layers.
+            //for (int i = 0; i < dataSet.Count; i++)
+            //{
+            Parallel.For(0, dataSet.Count, i => { 
+                //Rescaling output of hidden layers to normalise and obtain bettwe distribution.
                 double[] hiddenLayer1 = neuralNetwork.PerceptronLayer(nnld[0].NumberOfNetworks, dataSet[i].PublicAddressDouble, nnld[0].Weights, nnld[0].NumberOfInputs, nnld[0].Biases);
+                //hiddenLayer1 = scalingFunction.LinearScaleToRange(hiddenLayer1, scalingFunction.FindMinMax(hiddenLayer1), new MinMax() { min = 0, max = 1 });
+                hiddenLayer1 = activationFunctions.Step(hiddenLayer1, 0, 1);
                 double[] hiddenLayer2 = neuralNetwork.PerceptronLayer(nnld[1].NumberOfNetworks, hiddenLayer1, nnld[1].Weights, nnld[1].NumberOfInputs, nnld[1].Biases);
+                hiddenLayer2 = scalingFunction.LinearScaleToRange(hiddenLayer2, scalingFunction.FindMinMax(hiddenLayer2), new MinMax() { min = 0, max = 1 });
+                hiddenLayer2 = activationFunctions.Step(hiddenLayer2, 0, 1);
                 double[] hiddenLayer3 = neuralNetwork.PerceptronLayer(nnld[2].NumberOfNetworks, hiddenLayer2, nnld[2].Weights, nnld[2].NumberOfInputs, nnld[2].Biases);
+                hiddenLayer3 = scalingFunction.LinearScaleToRange(hiddenLayer3, scalingFunction.FindMinMax(hiddenLayer3), new MinMax() { min = 0, max = 1 });
+                hiddenLayer3 = activationFunctions.Step(hiddenLayer3, 0, 1);
                 double[] outputlayer = neuralNetwork.PerceptronLayer(nnld[3].NumberOfNetworks, hiddenLayer3, nnld[3].Weights, nnld[3].NumberOfInputs, nnld[3].Biases);
-                outputlayer = activationFunctions.ByteOutputWithMidPoint(outputlayer, 29180215);     //Output is a 32 byte key (32 x 8 bits).  Value used in ByteOutputE is drawn from a 12 hour run to determine mid point.
+                outputlayer = scalingFunction.LinearScaleToRange(outputlayer, scalingFunction.FindMinMax(outputlayer), new MinMax() { min = 0, max = 1 });
+                outputlayer = activationFunctions.Step(outputlayer, 0, 1);
 
                 Assess(outputlayer, i);
-            }
+            });
         }
 
         private void Assess(double[] outputlayer, int index)
         {
             int matchCount = 0;
-            outputlayer = ConvertFromBinaryToDouble(outputlayer);               //Convert output of neural network to double
+            outputlayer = ConvertFromBinaryToDouble(outputlayer);
 
-            for (int i = 0; i < dataSet[index].PrivateKey.Length; i++)          //Check how many bytes of the output match private key of input public address
+            for (int i = 0; i < dataSet[index].PrivateKey.Length; i++)
             {
                 if (dataSet[index].PrivateKey[i] == (int)outputlayer[i])
                     matchCount++;
             }
 
-            if (matchCount > currentMaxBytes)                                   //If the number of bytes is an improvement, record those weights
+            if (matchCount > currentMaxBytes)
             {
                 currentMaxBytes = matchCount;
                 parentWeights.Clear();
@@ -115,11 +128,11 @@ namespace BTCECDSAAnalyser
 
                 currentDeathRate = 0;
 
-                Validate();                                                     //Test for generalisation across validation set
+                Validate();
             }
             else if (matchCount > 0)
             {
-                Validate();                                                     //The number of bytes found does not correlate with generalisation of a particular byte so test                                                     
+                Validate();
                 currentDeathRate++;
             }
             else
@@ -127,7 +140,7 @@ namespace BTCECDSAAnalyser
 
 
 
-            if (currentDeathRate >= deathRate)                                  //Reset. Clears parent weights so that new weights are found.
+            if (currentDeathRate >= deathRate)
             {
                 currentDeathRate = 0;
                 parentWeights.Clear();
@@ -137,7 +150,7 @@ namespace BTCECDSAAnalyser
             UpdateWeights();
         }
 
-
+        #endregion
 
         #region Validation of generalisation
 
@@ -150,23 +163,36 @@ namespace BTCECDSAAnalyser
             for (int i = 0; i < valdataSet.Count; i++)
             {
                 double[] hiddenLayer1 = neuralNetwork.PerceptronLayer(nnld[0].NumberOfNetworks, valdataSet[i].PublicAddressDouble, nnld[0].Weights, nnld[0].NumberOfInputs, nnld[0].Biases);
+                hiddenLayer1 = scalingFunction.LinearScaleToRange(hiddenLayer1, scalingFunction.FindMinMax(hiddenLayer1), new MinMax() { min = 0, max = 1 });
+                hiddenLayer1 = activationFunctions.Step(hiddenLayer1, 0, 1);
                 double[] hiddenLayer2 = neuralNetwork.PerceptronLayer(nnld[1].NumberOfNetworks, hiddenLayer1, nnld[1].Weights, nnld[1].NumberOfInputs, nnld[1].Biases);
+                hiddenLayer2 = scalingFunction.LinearScaleToRange(hiddenLayer2, scalingFunction.FindMinMax(hiddenLayer2), new MinMax() { min = 0, max = 1 });
+                hiddenLayer2 = activationFunctions.Step(hiddenLayer2, 0, 1);
                 double[] hiddenLayer3 = neuralNetwork.PerceptronLayer(nnld[2].NumberOfNetworks, hiddenLayer2, nnld[2].Weights, nnld[2].NumberOfInputs, nnld[2].Biases);
+                hiddenLayer3 = scalingFunction.LinearScaleToRange(hiddenLayer3, scalingFunction.FindMinMax(hiddenLayer3), new MinMax() { min = 0, max = 1 });
+                hiddenLayer3 = activationFunctions.Step(hiddenLayer3, 0, 1);
                 double[] outputlayer = neuralNetwork.PerceptronLayer(nnld[3].NumberOfNetworks, hiddenLayer3, nnld[3].Weights, nnld[3].NumberOfInputs, nnld[3].Biases);
-                outputlayer = activationFunctions.ByteOutputWithMidPoint(outputlayer, 29180215);
+                outputlayer = scalingFunction.LinearScaleToRange(outputlayer, scalingFunction.FindMinMax(outputlayer), new MinMax() { min = 0, max = 1 });
+                outputlayer = activationFunctions.Step(outputlayer, 0, 1);
 
                 ValidateTest(outputlayer, i, ref ws);
             }
 
             for (int i = 0; i < ws.Statistics.Length; i++)
-                if (ws.Statistics[i] > 50)  //Means 0.005 based upon validation set of 10000.  Adjust as required.  Use to determine what gets saved
+                if (ws.Statistics[i] > 50)
+                {
                     shouldSave = true;
+
+                    if (ws.Statistics[i] > maxStat)
+                    {
+                        maxStat = ws.Statistics[i];
+                        Console.WriteLine(string.Format("Current highest stat is: {0}, Probability: {1}", maxStat, maxStat / valdataSet.Count));
+                    }
+                }
 
             if (shouldSave)
             {
-                Console.WriteLine(Environment.NewLine);
-                for (int i = 0; i < ws.Statistics.Length; i++)
-                    Console.WriteLine(string.Format("Byte {0} found {1} times. Probability: {2}", i, ws.Statistics[i], ws.Statistics[i] / valdataSet.Count));  //debug output - can remove
+                //Console.WriteLine(Environment.NewLine);
                 //SerialiseWeightsAndSaveToDB(ws.Statistics);  //Save to DB using entity framework - uncomment to enable - remember to set connection string in WeightsDBContext
             }
         }
@@ -177,7 +203,7 @@ namespace BTCECDSAAnalyser
 
             for (int i = 0; i < valdataSet[index].PrivateKey.Length; i++)
             {
-                if (valdataSet[index].PrivateKey[i] == (int)outputlayer[i])  //Check output against private keys
+                if (valdataSet[index].PrivateKey[i] == (int)outputlayer[i])
                     ws.Statistics[i]++;
             }
         }
@@ -186,7 +212,6 @@ namespace BTCECDSAAnalyser
 
         #region Convert Output layer from binary to double array
 
-        //Output layer is a binary representation of 32 bytes.  This turns it into an array of doubles.
         private double[] ConvertFromBinaryToDouble(double[] data)
         {
             double[] value = new double[32];
@@ -220,14 +245,14 @@ namespace BTCECDSAAnalyser
 
         private void UpdateWeights()
         {
-            if (parentWeights.Count == 0)  //No successful weights found yet
+            if (parentWeights.Count == 0)
             {
-                nnld[0].Weights = weightsGenerator.CreateRandomWeightsPositive(nnld[0].NumberOfInputs * nnld[0].NumberOfNetworks);
-                nnld[1].Weights = weightsGenerator.CreateRandomWeightsPositive(nnld[1].NumberOfInputs * nnld[1].NumberOfNetworks);
-                nnld[2].Weights = weightsGenerator.CreateRandomWeightsPositive(nnld[2].NumberOfInputs * nnld[2].NumberOfNetworks);
-                nnld[3].Weights = weightsGenerator.CreateRandomWeightsPositive(nnld[3].NumberOfInputs * nnld[3].NumberOfNetworks);
+                nnld[0].Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld[0].NumberOfInputs * nnld[0].NumberOfNetworks);
+                nnld[1].Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld[1].NumberOfInputs * nnld[1].NumberOfNetworks);
+                nnld[2].Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld[2].NumberOfInputs * nnld[2].NumberOfNetworks);
+                nnld[3].Weights = weightsGenerator.CreateRandomWeightsPositivePRNG(nnld[3].NumberOfInputs * nnld[3].NumberOfNetworks);
             }
-            else  //Derive a new set of weights from previously successful weights - play around with evolution rate in EvaluateFitness2.
+            else
             {
                 nnld[0].Weights = geneticAlgorithm.CrossOverAndMutation(geneticAlgorithm.EvaluateFitness(nnld[0].Weights), nnld[0].Weights);
                 nnld[1].Weights = geneticAlgorithm.CrossOverAndMutation(geneticAlgorithm.EvaluateFitness(nnld[1].Weights), nnld[1].Weights);
