@@ -1,37 +1,24 @@
-﻿using BTCLib;
+﻿/*
+ * Engine D
+ * 
+ * Using WeightsGeneratorRNGCSPScaledELU for weights generation.
+ * 
+ * Produces byte probabilities of 0.007 in a reasonable time.
+ * 
+ * Test if adjusting the output of RNGCryptoServiceProvider results
+ * in better probabilities.
+ */
+using BTCLib;
 using MarxMLL2;
+using MarxMLL2.WeightsGenerators;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
-namespace BTCECDSAPick
+namespace BTCECDSACracker.Engines
 {
-    #region Objects
 
-    public class DataSet
-    {
-        public double[] PublicAddressDouble { get; set; }
-        public string PublicAddress { get; set; }
-        public byte[] PrivateKey { get; set; }
-        public byte[] CrackedPrivateKey { get; set; }
-    }
 
-    public class WeightStore
-    {
-        public double[] Statistics { get; set; }
-    }
-
-    public class NeuralNetwork
-    {
-        public int LayerNumber { get; set; }
-        public int NetworkNumber { get; set; }
-        public double[] Weights { get; set; }
-        public double bias { get; set; }
-    }
-
-    #endregion
-
-    public class EngineA
+    public class EngineD
     {
         #region Variables
 
@@ -39,7 +26,7 @@ namespace BTCECDSAPick
         private ActivationFunctions activationFunctions;
         private GeneticAlgorithm geneticAlgorithm;
         private Perceptron perceptron;
-        private WeightsGenerator weightsGenerator;
+        private IWeightsGenerator weightsGenerator;
 
         private List<BTCKeyStore> keyStore;
         private List<DataSet> dataSet;
@@ -56,7 +43,7 @@ namespace BTCECDSAPick
 
         #endregion
 
-        public EngineA()
+        public EngineD()
         {
             parentWeights = new List<double[]>();
             Init();
@@ -68,7 +55,9 @@ namespace BTCECDSAPick
         {
             //Init classes
             scalingFunction = new ScalingFunction();
-            weightsGenerator = new WeightsGenerator();
+            //weightsGenerator = new WeightsGeneratorURNGFibonacci();  //inject a different weight generator
+            weightsGenerator = new WeightsGeneratorRNGCSPScaledELU();
+            //weightsGenerator = new WeightsGeneratorPRNGSHA512(); 
             activationFunctions = new ActivationFunctions();
             geneticAlgorithm = new GeneticAlgorithm(weightsGenerator);
             neuralNetwork = new List<NeuralNetwork>();
@@ -92,46 +81,54 @@ namespace BTCECDSAPick
         private void DesignNN()
         {
             //Layer 0
-            for(int i = 0; i < 32; i++)
+            for (int i = 0; i < 32; i++)
             {
-                NeuralNetwork nn = new NeuralNetwork();
-                nn.LayerNumber = 0;
-                nn.NetworkNumber = i;
-                nn.bias = 0;
-                nn.Weights = weightsGenerator.CreateRandomWeights(20);
+                NeuralNetwork nn = new NeuralNetwork()
+                {
+                    LayerNumber = 0,
+                    NetworkNumber = i,
+                    Bias = 0,
+                    Weights = weightsGenerator.CreateRandomWeights(20)
+                };
                 neuralNetwork.Add(nn);
             }
 
             //Layer 1
             for (int i = 0; i < 64; i++)
             {
-                NeuralNetwork nn = new NeuralNetwork();
-                nn.LayerNumber = 1;
-                nn.NetworkNumber = i;
-                nn.bias = 0;
-                nn.Weights = weightsGenerator.CreateRandomWeights(32);
+                NeuralNetwork nn = new NeuralNetwork()
+                {
+                    LayerNumber = 1,
+                    NetworkNumber = i,
+                    Bias = 0,
+                    Weights = weightsGenerator.CreateRandomWeights(32)
+                };
                 neuralNetwork.Add(nn);
             }
 
             //Layer 2
             for (int i = 0; i < 128; i++)
             {
-                NeuralNetwork nn = new NeuralNetwork();
-                nn.LayerNumber = 2;
-                nn.NetworkNumber = i;
-                nn.bias = 0;
-                nn.Weights = weightsGenerator.CreateRandomWeights(64);
+                NeuralNetwork nn = new NeuralNetwork()
+                {
+                    LayerNumber = 2,
+                    NetworkNumber = i,
+                    Bias = 0,
+                    Weights = weightsGenerator.CreateRandomWeights(64)
+                };
                 neuralNetwork.Add(nn);
             }
 
             //Output Layer
             for (int i = 0; i < 256; i++)
             {
-                NeuralNetwork nn = new NeuralNetwork();
-                nn.LayerNumber = 3;
-                nn.NetworkNumber = i;
-                nn.bias = 0;
-                nn.Weights = weightsGenerator.CreateRandomWeights(128);
+                NeuralNetwork nn = new NeuralNetwork()
+                {
+                    LayerNumber = 3,
+                    NetworkNumber = i,
+                    Bias = 0,
+                    Weights = weightsGenerator.CreateRandomWeights(128)
+                };
                 neuralNetwork.Add(nn);
             }
         }
@@ -233,7 +230,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> hiddenLayer1 = neuralNetwork.FindAll(x => x.LayerNumber == 0);
                 double[] weightedSum1 = new double[32];
                 for (int j = 0; j < hiddenLayer1.Count; j++)
-                    weightedSum1[j] = perceptron.Execute(hiddenLayer1[j].Weights, dataSet[i].PublicAddressDouble, hiddenLayer1[j].bias);
+                    weightedSum1[j] = perceptron.Execute(hiddenLayer1[j].Weights, dataSet[i].PublicAddressDouble, hiddenLayer1[j].Bias);
 
                 for (int k = 0; k < weightedSum1.Length; k++)
                     weightedSum1[k] = activationFunctions.LeakyReLU(weightedSum1[k]);
@@ -242,7 +239,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> hiddenLayer2 = neuralNetwork.FindAll(x => x.LayerNumber == 1);
                 double[] weightedSum2 = new double[64];
                 for (int j = 0; j < hiddenLayer2.Count; j++)
-                    weightedSum2[j] = perceptron.Execute(hiddenLayer2[j].Weights, weightedSum1, hiddenLayer2[j].bias);
+                    weightedSum2[j] = perceptron.Execute(hiddenLayer2[j].Weights, weightedSum1, hiddenLayer2[j].Bias);
 
                 for (int k = 0; k < weightedSum2.Length; k++)
                     weightedSum2[k] = activationFunctions.LeakyReLU(weightedSum2[k]);
@@ -251,7 +248,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> hiddenLayer3 = neuralNetwork.FindAll(x => x.LayerNumber == 2);
                 double[] weightedSum3 = new double[128];
                 for (int j = 0; j < hiddenLayer3.Count; j++)
-                    weightedSum3[j] = perceptron.Execute(hiddenLayer3[j].Weights, weightedSum2, hiddenLayer3[j].bias);
+                    weightedSum3[j] = perceptron.Execute(hiddenLayer3[j].Weights, weightedSum2, hiddenLayer3[j].Bias);
 
                 for (int k = 0; k < weightedSum3.Length; k++)
                     weightedSum3[k] = activationFunctions.LeakyReLU(weightedSum3[k]);
@@ -260,7 +257,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> outputLayer = neuralNetwork.FindAll(x => x.LayerNumber == 3);
                 double[] weightedSum4 = new double[256];
                 for (int j = 0; j < outputLayer.Count; j++)
-                    weightedSum4[j] = perceptron.Execute(outputLayer[j].Weights, weightedSum3, outputLayer[j].bias);
+                    weightedSum4[j] = perceptron.Execute(outputLayer[j].Weights, weightedSum3, outputLayer[j].Bias);
 
                 for (int k = 0; k < weightedSum4.Length; k++)
                     weightedSum4[k] = activationFunctions.BinaryStep(weightedSum4[k]);
@@ -327,7 +324,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> hiddenLayer1 = neuralNetwork.FindAll(x => x.LayerNumber == 0);
                 double[] weightedSum1 = new double[32];
                 for (int j = 0; j < hiddenLayer1.Count; j++)
-                    weightedSum1[j] = perceptron.Execute(hiddenLayer1[j].Weights, valdataSet[i].PublicAddressDouble, hiddenLayer1[j].bias);
+                    weightedSum1[j] = perceptron.Execute(hiddenLayer1[j].Weights, valdataSet[i].PublicAddressDouble, hiddenLayer1[j].Bias);
 
                 for (int k = 0; k < weightedSum1.Length; k++)
                     weightedSum1[k] = activationFunctions.LeakyReLU(weightedSum1[k]);
@@ -336,7 +333,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> hiddenLayer2 = neuralNetwork.FindAll(x => x.LayerNumber == 1);
                 double[] weightedSum2 = new double[64];
                 for (int j = 0; j < hiddenLayer2.Count; j++)
-                    weightedSum2[j] = perceptron.Execute(hiddenLayer2[j].Weights, weightedSum1, hiddenLayer2[j].bias);
+                    weightedSum2[j] = perceptron.Execute(hiddenLayer2[j].Weights, weightedSum1, hiddenLayer2[j].Bias);
 
                 for (int k = 0; k < weightedSum2.Length; k++)
                     weightedSum2[k] = activationFunctions.LeakyReLU(weightedSum2[k]);
@@ -345,7 +342,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> hiddenLayer3 = neuralNetwork.FindAll(x => x.LayerNumber == 2);
                 double[] weightedSum3 = new double[128];
                 for (int j = 0; j < hiddenLayer3.Count; j++)
-                    weightedSum3[j] = perceptron.Execute(hiddenLayer3[j].Weights, weightedSum2, hiddenLayer3[j].bias);
+                    weightedSum3[j] = perceptron.Execute(hiddenLayer3[j].Weights, weightedSum2, hiddenLayer3[j].Bias);
 
                 for (int k = 0; k < weightedSum3.Length; k++)
                     weightedSum3[k] = activationFunctions.LeakyReLU(weightedSum3[k]);
@@ -354,7 +351,7 @@ namespace BTCECDSAPick
                 List<NeuralNetwork> outputLayer = neuralNetwork.FindAll(x => x.LayerNumber == 3);
                 double[] weightedSum4 = new double[256];
                 for (int j = 0; j < outputLayer.Count; j++)
-                    weightedSum4[j] = perceptron.Execute(outputLayer[j].Weights, weightedSum3, outputLayer[j].bias);
+                    weightedSum4[j] = perceptron.Execute(outputLayer[j].Weights, weightedSum3, outputLayer[j].Bias);
 
                 for (int k = 0; k < weightedSum4.Length; k++)
                     weightedSum4[k] = activationFunctions.BinaryStep(weightedSum4[k]);
@@ -432,7 +429,7 @@ namespace BTCECDSAPick
             if (parentWeights.Count == 0)
             {
                 for (int i = 0; i < neuralNetwork.Count; i++)
-                    if(neuralNetwork[i].LayerNumber == 0)
+                    if (neuralNetwork[i].LayerNumber == 0)
                         neuralNetwork[i].Weights = weightsGenerator.CreateRandomWeights(20);
 
                 for (int i = 0; i < neuralNetwork.Count; i++)

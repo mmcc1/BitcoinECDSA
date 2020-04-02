@@ -1,4 +1,4 @@
-﻿using BTCECDSAPick;
+﻿using BTCECDSACracker.Engines;
 using System;
 
 namespace BTCCracker
@@ -7,7 +7,7 @@ namespace BTCCracker
     {
         static void Main(string[] args)
         {
-            EngineA a = new EngineA();
+            EngineE a = new EngineE();
             a.Execute();
         }
     }

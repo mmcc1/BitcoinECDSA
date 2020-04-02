@@ -17,7 +17,7 @@ namespace MarxMLL2
 
         public PRNGSHA512(double seed)
         {
-            seed = this.seed;
+            this.seed = seed;
         }
 
         public byte[] GetNextBytes()

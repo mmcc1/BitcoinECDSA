@@ -55,16 +55,6 @@ namespace MarxMLL2
         {
             return x * (1 - x);
         }
-        /*
-        public double ReLU(double x)
-        {
-            return Math.Max(0, x);// x < 0 ? 0 : x;
-        }
-        */
-        public double DReLU(double x)
-        {
-            return Math.Max(0, 1);// x < 0 ? 0 : x;
-        }
 
         public double PReLU(double x, double a)
         {
@@ -106,7 +96,7 @@ namespace MarxMLL2
             return (x / (2 * Math.Sqrt(Math.Pow(x, 2) + 1))) + 1;
         }
 
-        public double SoftExponential(double x, double alpha = 0.0, double max_value = 0.0)
+        public double SoftExponential(double x, double alpha = 0.0)
         {
 
             // """Soft Exponential activation function by Godfrey and Gashler
@@ -188,24 +178,24 @@ namespace MarxMLL2
             else return Math.Tanh(x);
         }
 
-        public static double LogisticFunctionSteep(double x)
+        public double LogisticFunctionSteep(double x)
         {
             return 1.0 / (1.0 + Math.Exp(-4.9 * x));
         }
 
-        public static double LogisticApproximantSteep(double x)
+        public double LogisticApproximantSteep(double x)
         {
             return 1.0 / (1.0 + Exp(-4.9 * x));
         }
 
-        public static double SoftSign(double x)
+        public double SoftSign(double x)
         {
             return 0.5 + (x / (2.0 * (0.2 + Math.Abs(x))));
         }
 
-        public static double PolynomialApproximant(double x)
+        public double PolynomialApproximant(double x)
         {
-            x = x * 4.9;
+            x *= 4.9;
             double x2 = x * x;
             double e = 1.0 + Math.Abs(x) + x2 * 0.555 + x2 * x2 * 0.143;
 
@@ -213,7 +203,7 @@ namespace MarxMLL2
             return 1.0 / (1.0 + f);
         }
 
-        public static double QuadraticSigmoid(double x)
+        public double QuadraticSigmoid(double x)
         {
             const double t = 0.999;
             const double a = 0.00001;
@@ -345,7 +335,7 @@ namespace MarxMLL2
         {
             return 1.2567348023993685 * ((Asinh(x) + 1.0) * 0.5);
         }
-        private static double Exp(double val)
+        private double Exp(double val)
         {
             long tmp = (long)(1512775 * val + (1072693248 - 60801));
             return BitConverter.Int64BitsToDouble(tmp << 32);
