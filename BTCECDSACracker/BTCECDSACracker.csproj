@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BTCLib\BTCLib.csproj" />
+    <ProjectReference Include="..\MarxMLL2\MarxMLL2.csproj" />
+  </ItemGroup>
+
+</Project>

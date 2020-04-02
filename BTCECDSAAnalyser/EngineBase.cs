@@ -24,6 +24,8 @@ namespace BTCECDSAAnalyser
         public byte[] CrackedPrivateKey { get; set; }
     }
 
+    
+
     //An object used in validation
     public class WeightStore
     {
@@ -110,7 +112,6 @@ namespace BTCECDSAAnalyser
                 for (int j = 0; j < pap.Length; j++)
                     ds.PublicAddressDouble[j] = pap[j];
 
-                //Added for Engine B.
                 ds.PublicAddressDouble = scalingFunction.LinearScaleToRange(ds.PublicAddressDouble, scalingFunction.FindMinMax(ds.PublicAddressDouble), new MinMax() { min = 0, max = 0.01 });
 
                 dataSet.Add(ds);

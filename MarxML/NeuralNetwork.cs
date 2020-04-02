@@ -13,6 +13,16 @@ namespace MarxML
 
     public class NeuralNetwork
     {
+        public double Perceptron(double[] weights, double[] inputs, double bias)
+        {
+            double sum = 0;
+
+            for (int i = 0; i < inputs.Length; i++)
+                sum += weights[i] * inputs[i];
+
+            return sum + bias;
+        }
+
         public double[] PerceptronLayer(int numberOfNetworks, double[] input, double[] weights, int numberOfInputs, double[] bias)
         {
             double[] sum = new double[numberOfNetworks * (input.Length / numberOfInputs)];

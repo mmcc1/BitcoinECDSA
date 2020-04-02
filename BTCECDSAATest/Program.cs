@@ -8,7 +8,7 @@ namespace BTCECDSAATest
     {
         static void Main(string[] args)
         {
-            Engine eng = new Engine();  //Change this if you derive a new engine
+            EngineC eng = new EngineC();  //Change this if you derive a new engine
             eng.Execute();
 
             Console.ReadLine();
