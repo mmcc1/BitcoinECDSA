@@ -7,7 +7,7 @@ namespace BTCCracker
     {
         static void Main(string[] args)
         {
-            EngineF a = new EngineF();
+            EngineG a = new EngineG();
             a.Execute();
         }
     }
