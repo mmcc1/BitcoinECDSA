@@ -206,7 +206,7 @@ namespace BTCECDSACracker.Engines
 
         public void Execute()
         {
-            Console.WriteLine(string.Format("Engine A Starting..."));
+            Console.WriteLine(string.Format("Engine C Starting..."));
             DesignNN();
             bool shouldRun = true;
 

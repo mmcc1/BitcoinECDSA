@@ -1,13 +1,14 @@
 ﻿/*
- * Engine E
+ * Engine F
  * 
  * Using WeightsGeneratorRNGCSP for weights generation.
  * 
- * Produces byte probabilities of 0.0065 in a reasonable time.
+ * Produces byte probabilities of  0.065  in a reasonable time.
  * 
- * Test if expanding the input layer of results
+ * Test if reducing the input layer results
  * in better probabilities.
  */
+using BTCECDSACracker.Helpers;
 using BTCLib;
 using MarxMLL2;
 using MarxMLL2.WeightsGenerators;
@@ -18,7 +19,7 @@ namespace BTCECDSACracker.Engines
 {
 
 
-    public class EngineE
+    public class EngineF
     {
         #region Variables
 
@@ -27,23 +28,20 @@ namespace BTCECDSACracker.Engines
         private GeneticAlgorithm geneticAlgorithm;
         private Perceptron perceptron;
         private IWeightsGenerator weightsGenerator;
-
         private List<BTCKeyStore> keyStore;
         private List<DataSet> dataSet;
         private List<BTCKeyStore> valkeyStore;
         private List<DataSet> valdataSet;
         private List<NeuralNetwork> neuralNetwork;
-
-        private int currentMaxBytes;
         private int deathRate;
         private int currentDeathRate;
-
         private List<double[]> parentWeights;
-        double maxStat;
+        CircularBuffer cb;
+        private double oldMetric;
 
         #endregion
 
-        public EngineE()
+        public EngineF()
         {
             parentWeights = new List<double[]>();
             Init();
@@ -55,9 +53,7 @@ namespace BTCECDSACracker.Engines
         {
             //Init classes
             scalingFunction = new ScalingFunction();
-            //weightsGenerator = new WeightsGeneratorURNGFibonacci();  //inject a different weight generator
             weightsGenerator = new WeightsGeneratorRNGCSP();
-            //weightsGenerator = new WeightsGeneratorPRNGSHA512(); 
             activationFunctions = new ActivationFunctions();
             geneticAlgorithm = new GeneticAlgorithm(weightsGenerator);
             neuralNetwork = new List<NeuralNetwork>();
@@ -70,8 +66,12 @@ namespace BTCECDSACracker.Engines
             valdataSet = new List<DataSet>();
             neuralNetwork = new List<NeuralNetwork>();
 
-            currentMaxBytes = 0;
             deathRate = 100;  //If too high, then chance plays an increasing role and skews the result.
+
+            cb = new CircularBuffer(deathRate);
+            oldMetric = double.MaxValue;
+
+            GenerateValidationDataset();
         }
 
         #endregion
@@ -81,7 +81,7 @@ namespace BTCECDSACracker.Engines
         private void DesignNN()
         {
             //Layer 0
-            for (int i = 0; i < 40; i++)
+            for (int i = 0; i < 20; i++)
             {
                 NeuralNetwork nn = new NeuralNetwork()
                 {
@@ -206,21 +206,21 @@ namespace BTCECDSACracker.Engines
 
         public void Execute()
         {
-            Console.WriteLine(string.Format("Engine E Starting..."));
+            Console.WriteLine(string.Format("Engine F Starting..."));
             DesignNN();
             bool shouldRun = true;
 
             while (shouldRun)
             {
                 GenerateDataset();
-                GenerateValidationDataset();
+                
                 Train();
             }
         }
 
         #endregion
 
-        #region Train and assess
+        #region Train
 
         private void Train()
         {
@@ -228,7 +228,7 @@ namespace BTCECDSACracker.Engines
             {
                 //Layer 0
                 List<NeuralNetwork> hiddenLayer1 = neuralNetwork.FindAll(x => x.LayerNumber == 0);
-                double[] weightedSum1 = new double[40];
+                double[] weightedSum1 = new double[20];
                 for (int j = 0; j < hiddenLayer1.Count; j++)
                     weightedSum1[j] = perceptron.Execute(hiddenLayer1[j].Weights, dataSet[i].PublicAddressDouble, hiddenLayer1[j].Bias);
 
@@ -266,130 +266,128 @@ namespace BTCECDSACracker.Engines
             }
         }
 
-        private void Assess(double[] outputlayer, int index)
-        {
-            int matchCount = 0;
-            outputlayer = ConvertFromBinaryToDouble(outputlayer);
-
-            for (int i = 0; i < dataSet[index].PrivateKey.Length; i++)
-            {
-                if (dataSet[index].PrivateKey[i] == (int)outputlayer[i])
-                    matchCount++;
-            }
-
-            if (matchCount > currentMaxBytes)
-            {
-                currentMaxBytes = matchCount;
-                parentWeights.Clear();
-                double[] placeholder = new double[2];
-                parentWeights.Add(placeholder);
-
-                currentDeathRate = 0;
-
-                Validate();
-            }
-            else if (matchCount > 0)
-            {
-                Validate();
-                currentDeathRate++;
-            }
-            else
-                currentDeathRate++;
-
-
-
-            if (currentDeathRate >= deathRate)
-            {
-                currentDeathRate = 0;
-                parentWeights.Clear();
-                currentMaxBytes = 0;
-            }
-
-            UpdateWeights();
-        }
-
         #endregion
 
-        #region Validation of generalisation
+        #region Assess
 
-        private void Validate()
+        private void Assess(double[] outputlayer, int index)
         {
-            bool shouldSave = false;
+            outputlayer = ConvertFromBinaryToDouble(outputlayer);
+            double[] attemptstats = new double[32];
+            double[] overallstats = new double[32];
 
-            WeightStore ws = new WeightStore() { Statistics = new double[32] };
+            //Add to buffer
+            cb.Create(new CircleBufferEntry() { PrivateKey = dataSet[index].PrivateKey, PrivateKeyAttempt = outputlayer });
 
-            for (int i = 0; i < valdataSet.Count; i++)
+            //Calculate stats for current attempt
+            for (int i = 0; i < 32; i++)
             {
-                //Layer 0
-                List<NeuralNetwork> hiddenLayer1 = neuralNetwork.FindAll(x => x.LayerNumber == 0);
-                double[] weightedSum1 = new double[40];
-                for (int j = 0; j < hiddenLayer1.Count; j++)
-                    weightedSum1[j] = perceptron.Execute(hiddenLayer1[j].Weights, valdataSet[i].PublicAddressDouble, hiddenLayer1[j].Bias);
-
-                for (int k = 0; k < weightedSum1.Length; k++)
-                    weightedSum1[k] = activationFunctions.LeakyReLU(weightedSum1[k]);
-
-                //Layer 1
-                List<NeuralNetwork> hiddenLayer2 = neuralNetwork.FindAll(x => x.LayerNumber == 1);
-                double[] weightedSum2 = new double[64];
-                for (int j = 0; j < hiddenLayer2.Count; j++)
-                    weightedSum2[j] = perceptron.Execute(hiddenLayer2[j].Weights, weightedSum1, hiddenLayer2[j].Bias);
-
-                for (int k = 0; k < weightedSum2.Length; k++)
-                    weightedSum2[k] = activationFunctions.LeakyReLU(weightedSum2[k]);
-
-                //Layer 2
-                List<NeuralNetwork> hiddenLayer3 = neuralNetwork.FindAll(x => x.LayerNumber == 2);
-                double[] weightedSum3 = new double[128];
-                for (int j = 0; j < hiddenLayer3.Count; j++)
-                    weightedSum3[j] = perceptron.Execute(hiddenLayer3[j].Weights, weightedSum2, hiddenLayer3[j].Bias);
-
-                for (int k = 0; k < weightedSum3.Length; k++)
-                    weightedSum3[k] = activationFunctions.LeakyReLU(weightedSum3[k]);
-
-                //Output Layer
-                List<NeuralNetwork> outputLayer = neuralNetwork.FindAll(x => x.LayerNumber == 3);
-                double[] weightedSum4 = new double[256];
-                for (int j = 0; j < outputLayer.Count; j++)
-                    weightedSum4[j] = perceptron.Execute(outputLayer[j].Weights, weightedSum3, outputLayer[j].Bias);
-
-                for (int k = 0; k < weightedSum4.Length; k++)
-                    weightedSum4[k] = activationFunctions.BinaryStep(weightedSum4[k]);
-
-                ValidateTest(weightedSum4, i, ref ws);
+                if ((int)outputlayer[i] == (int)dataSet[index].PrivateKey[i])
+                    attemptstats[i]++;
             }
 
-            for (int i = 0; i < ws.Statistics.Length; i++)
-                if (ws.Statistics[i] > 50)
-                {
-                    shouldSave = true;
+            //Check if there is any byte match between output and private key
+            bool match = false;
+            for(int i = 0; i < 32; i++)
+            {
+                if (attemptstats[i] > 0)
+                    match = true;
+            }
 
-                    if (ws.Statistics[i] > maxStat)
+            //if there is a match then we are justified in broader assessment
+            if (match)
+            {
+                //Calculate stats since last population crash
+                CircleBufferEntry[] cbes = cb.Read();
+
+                for (int i = 0; i < cbes.Length; i++)
+                {
+                    for (int j = 0; j < 32; j++)
                     {
-                        maxStat = ws.Statistics[i];
-                        Console.WriteLine(string.Format("Current highest stat is: {0}, Probability: {1}", maxStat, maxStat / valdataSet.Count));
+                        if (cbes[i] != null)
+                        {
+                            if ((int)cbes[i].PrivateKey[j] == (int)cbes[i].PrivateKeyAttempt[j])
+                                overallstats[j]++;
+                        }
+                        else  //if the buffer is not full yet, abort.
+                        {
+                            UpdateWeights();
+                            return;
+                        }
                     }
                 }
 
-            if (shouldSave)
-            {
-                //Console.WriteLine(Environment.NewLine);
-                //SerialiseWeightsAndSaveToDB(ws.Statistics);  //Save to DB using entity framework - uncomment to enable - remember to set connection string in WeightsDBContext
+                //Create a metric out of these stats
+                double metric = 0;
+                for (int i = 0; i < 32; i++)
+                {
+                    metric += overallstats[i];
+                }
+
+                //If there is no previous metric, create it, update weights and return
+                if (oldMetric == double.MaxValue)
+                {
+                    oldMetric = metric;
+                    UpdateWeights();
+                    return;
+                }
+
+                //If the metric is less than the previous metric, either crash or increment deathrate
+                if (metric < oldMetric)
+                {
+                    if (currentDeathRate > deathRate)
+                    {
+                        parentWeights.Clear();
+                        currentDeathRate = 0;
+                        UpdateWeights();
+                        cb.Clear();
+                        return;
+                    }
+                    else
+                    {
+                        currentDeathRate++;
+                        UpdateWeights();
+                        return;
+                    }
+                }
+                else if (metric > oldMetric) //If it does exceed previous metric, we have an improvement, so print it out to the screen
+                {
+                    oldMetric = metric;
+                    parentWeights.Clear();
+                    parentWeights.Add(new double[] { 1, 2, 3 });
+
+                    Console.WriteLine(string.Format("Metric: {32} - {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18}, {19}, {20}, {21}, {22}, {23}, {24}, {25}, {26}, {27}, {28}, {29}, {30}, {31}", overallstats[0], overallstats[1], overallstats[2], overallstats[3], overallstats[4], overallstats[5], overallstats[6], overallstats[7], overallstats[8], overallstats[9], overallstats[10], overallstats[11], overallstats[12], overallstats[13], overallstats[14], overallstats[15], overallstats[16], overallstats[17], overallstats[18], overallstats[19], overallstats[20], overallstats[21], overallstats[22], overallstats[23], overallstats[24], overallstats[25], overallstats[26], overallstats[27], overallstats[28], overallstats[29], overallstats[30], overallstats[31], metric));
+                    
+                    //Validation
+                    //For validation we require fairly high numbers across all byte positions since the last crash.
+
+                    
+                    return;
+                }
+                else //No change
+                {
+                    currentDeathRate++;
+                    UpdateWeights();
+                    return;
+                }
             }
-        }
+            else  //No match, so increment death rate
+                currentDeathRate++;
 
-        private void ValidateTest(double[] outputlayer, int index, ref WeightStore ws)
-        {
-            outputlayer = ConvertFromBinaryToDouble(outputlayer);
 
-            for (int i = 0; i < valdataSet[index].PrivateKey.Length; i++)
+            if (currentDeathRate > deathRate)
             {
-                if (valdataSet[index].PrivateKey[i] == (int)outputlayer[i])
-                    ws.Statistics[i]++;
+                parentWeights.Clear();
+                currentDeathRate = 0;
+                UpdateWeights();
+                cb.Clear();
+                return;
             }
         }
 
         #endregion
+
+        
 
         #region Convert Output layer from binary to double array
 
@@ -434,7 +432,7 @@ namespace BTCECDSACracker.Engines
 
                 for (int i = 0; i < neuralNetwork.Count; i++)
                     if (neuralNetwork[i].LayerNumber == 1)
-                        neuralNetwork[i].Weights = weightsGenerator.CreateRandomWeights(40);
+                        neuralNetwork[i].Weights = weightsGenerator.CreateRandomWeights(20);
 
                 for (int i = 0; i < neuralNetwork.Count; i++)
                     if (neuralNetwork[i].LayerNumber == 2)
