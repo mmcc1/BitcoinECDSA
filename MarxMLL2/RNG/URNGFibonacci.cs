@@ -34,7 +34,6 @@ namespace MarxMLL2
             ScalingFunction sf = new ScalingFunction();
             sf.LinearScaleToRange(f, sf.FindMinMax(f), new MinMax() { min = -1, max = 1 });
 
-            Random rng = new Random();
             return f[rng.Next(8)];
         }
 

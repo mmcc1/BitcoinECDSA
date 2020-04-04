@@ -1,21 +1,24 @@
 ﻿/*
- * Engine G
+ * Engine H
  * 
  * Improving generalisation
  * 
  */
+using BTCECDSACracker.DAL;
+using BTCECDSACracker.DAL.Tables;
 using BTCECDSACracker.Helpers;
 using BTCLib;
 using MarxMLL2;
 using MarxMLL2.WeightsGenerators;
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace BTCECDSACracker.Engines
 {
 
 
-    public class EngineG
+    public class EngineH
     {
         #region Variables
 
@@ -38,7 +41,7 @@ namespace BTCECDSACracker.Engines
 
         #endregion
 
-        public EngineG()
+        public EngineH()
         {
             parentWeights = new List<double[]>();
             Init();
@@ -135,7 +138,7 @@ namespace BTCECDSACracker.Engines
 
         #region Generate Dataset and validation set.
 
-        internal void GenerateDataset()
+        private void GenerateDataset()
         {
             keyStore.Clear();
             dataSet.Clear();
@@ -166,7 +169,7 @@ namespace BTCECDSACracker.Engines
             }
         }
 
-        internal void GenerateValidationDataset()
+        private void GenerateValidationDataset()
         {
             valkeyStore.Clear();
             valdataSet.Clear();
@@ -204,7 +207,7 @@ namespace BTCECDSACracker.Engines
 
         public void Execute()
         {
-            Console.WriteLine(string.Format("Engine G Starting..."));
+            Console.WriteLine(string.Format("Engine H Starting..."));
             DesignNN();
             bool shouldRun = true;
 
@@ -274,7 +277,7 @@ namespace BTCECDSACracker.Engines
             //validation set.
             //
             //We're using the peak probability as a means of evolving the GA.
-            
+
             outputlayer = ConvertFromBinaryToDouble(outputlayer);
 
             List<NeuralNetwork> layer1 = neuralNetwork.FindAll(x => x.LayerNumber == 0);
@@ -286,7 +289,7 @@ namespace BTCECDSACracker.Engines
             List<double[]> weights3 = new List<double[]>();
             List<double[]> weights4 = new List<double[]>();
 
-            for(int i = 0; i < 20; i++)
+            for (int i = 0; i < 20; i++)
             {
                 weights1.Add(layer1[i].Weights);
             }
@@ -390,9 +393,11 @@ namespace BTCECDSACracker.Engines
                 for (int k = 0; k < weightedSum4.Length; k++)
                     weightedSum4[k] = activationFunctions.BinaryStep(weightedSum4[k]);
 
-                probability = ValidationAssess(weightedSum4, i);
-                    
+                probability = ValidationAssess(weightedSum4, i); 
             }
+            
+            if(probability >= 0.005)
+                SerialiseWeightsAndSaveToDB(attemptstats, weights1, weights2, weights3, weights4);
 
             return probability;
         }
@@ -427,7 +432,7 @@ namespace BTCECDSACracker.Engines
                 Console.WriteLine(string.Format("{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18}, {19}, {20}, {21}, {22}, {23}, {24}, {25}, {26}, {27}, {28}, {29}, {30}, {31}", overallstats[0], overallstats[1], overallstats[2], overallstats[3], overallstats[4], overallstats[5], overallstats[6], overallstats[7], overallstats[8], overallstats[9], overallstats[10], overallstats[11], overallstats[12], overallstats[13], overallstats[14], overallstats[15], overallstats[16], overallstats[17], overallstats[18], overallstats[19], overallstats[20], overallstats[21], overallstats[22], overallstats[23], overallstats[24], overallstats[25], overallstats[26], overallstats[27], overallstats[28], overallstats[29], overallstats[30], overallstats[31]));
             }
 
-            return probability / valdataSet.Count;
+            return probability;
         }
 
         #endregion
@@ -506,6 +511,78 @@ namespace BTCECDSACracker.Engines
             }
         }
 
+        #endregion
+
+        #region Serialise weights and save to DB
+
+        //Weights are stored as serialised strings rather than objects - lazy me.
+        private void SerialiseWeightsAndSaveToDB(double[] weightStatistics, List<double[]> weights1, List<double[]> weights2, List<double[]> weights3, List<double[]> weights4)
+        {
+            BTCCrackerDBContext wdbc = new BTCCrackerDBContext();
+            WeightLog ws = new WeightLog();
+
+            ws.WeightsHL0 = SerialiseWeights(weights1);
+            ws.WeightsHL1 = SerialiseWeights(weights2);
+            ws.WeightsHL2 = SerialiseWeights(weights3);
+            ws.WeightsOL = SerialiseWeights(weights4);
+
+            ws.Byte0 = (int)weightStatistics[0];
+            ws.Byte1 = (int)weightStatistics[1];
+            ws.Byte2 = (int)weightStatistics[2];
+            ws.Byte3 = (int)weightStatistics[3];
+            ws.Byte4 = (int)weightStatistics[4];
+            ws.Byte5 = (int)weightStatistics[5];
+            ws.Byte6 = (int)weightStatistics[6];
+            ws.Byte7 = (int)weightStatistics[7];
+            ws.Byte8 = (int)weightStatistics[8];
+            ws.Byte9 = (int)weightStatistics[9];
+            ws.Byte10 = (int)weightStatistics[10];
+            ws.Byte11 = (int)weightStatistics[11];
+            ws.Byte12 = (int)weightStatistics[12];
+            ws.Byte13 = (int)weightStatistics[13];
+            ws.Byte14 = (int)weightStatistics[14];
+            ws.Byte15 = (int)weightStatistics[15];
+            ws.Byte16 = (int)weightStatistics[16];
+            ws.Byte17 = (int)weightStatistics[17];
+            ws.Byte18 = (int)weightStatistics[18];
+            ws.Byte19 = (int)weightStatistics[19];
+            ws.Byte20 = (int)weightStatistics[20];
+            ws.Byte21 = (int)weightStatistics[21];
+            ws.Byte22 = (int)weightStatistics[22];
+            ws.Byte23 = (int)weightStatistics[23];
+            ws.Byte24 = (int)weightStatistics[24];
+            ws.Byte25 = (int)weightStatistics[25];
+            ws.Byte26 = (int)weightStatistics[26];
+            ws.Byte27 = (int)weightStatistics[27];
+            ws.Byte28 = (int)weightStatistics[28];
+            ws.Byte29 = (int)weightStatistics[29];
+            ws.Byte30 = (int)weightStatistics[30];
+            ws.Byte31 = (int)weightStatistics[31];
+
+            wdbc.Add(ws);
+            wdbc.SaveChanges();
+
+        }
+
+        private string SerialiseWeights(List<double[]> weights)
+        {
+            StringBuilder w = new StringBuilder();
+
+            for (int i = 0; i < weights.Count; i++)
+            {
+                for (int j = 0; j < weights[i].Length; j++)
+                {
+                    if(j < weights[i].Length - 1)
+                        w.Append(weights[i][j].ToString() + ",");
+                    else
+                        w.Append(weights[i][j].ToString() + ":");
+                }
+
+                w.Append(";");
+            }
+
+            return w.ToString();
+        }
         #endregion
     }
 }
