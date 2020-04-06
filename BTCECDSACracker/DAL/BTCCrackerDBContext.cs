@@ -9,7 +9,7 @@ namespace BTCECDSACracker.DAL
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(@"Server=127.0.0.1;Database=xxx;User Id=xxx;Password=xxx;");
+            optionsBuilder.UseSqlServer(@"Server=127.0.0.1;Database=XXX;User Id=XXX;Password=XXX;");
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -161,9 +161,7 @@ namespace BTCECDSACracker.Engines
                     continue;
 
                 for (int j = 0; j < pap.Length; j++)
-                    ds.PublicAddressDouble[j] = pap[j];
-
-                ds.PublicAddressDouble = scalingFunction.LinearScaleToRange(ds.PublicAddressDouble, scalingFunction.FindMinMax(ds.PublicAddressDouble), new MinMax() { min = 0, max = 0.01 });
+                    ds.PublicAddressDouble[j] = pap[j] != 0 ? pap[j] / 256.0 : 0;
 
                 dataSet.Add(ds);
             }
@@ -192,10 +190,10 @@ namespace BTCECDSACracker.Engines
                     continue;
 
                 for (int j = 0; j < pap.Length; j++)
-                    ds.PublicAddressDouble[j] = pap[j];
+                    ds.PublicAddressDouble[j] = pap[j] != 0 ? pap[j] / 256.0 : 0;
 
                 //Added for Engine B
-                ds.PublicAddressDouble = scalingFunction.LinearScaleToRange(ds.PublicAddressDouble, scalingFunction.FindMinMax(ds.PublicAddressDouble), new MinMax() { min = 0, max = 0.01 });
+                //ds.PublicAddressDouble = scalingFunction.LinearScaleToRange(ds.PublicAddressDouble, scalingFunction.FindMinMax(ds.PublicAddressDouble), new MinMax() { min = 0, max = 0.01 });
 
                 valdataSet.Add(ds);
             }
